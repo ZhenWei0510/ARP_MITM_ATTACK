@@ -1,13 +1,11 @@
 #include <string.h>
 
+#include "arp.h"
 #include "util.h"
 
 #define MAX_ARPIP_N 8
 
-typedef struct {
-  ipaddr_t ip;
-  uint8_t eth[ETH_ADDR_LEN];
-} ipethaddr_t;
+
 
 ipethaddr_t arptable[MAX_ARPIP_N];
 int arptable_n = 0;
@@ -29,14 +27,35 @@ uint8_t *arptable_existed(uint8_t *ipaddr) {
  * arptable_add() - Append a mapping of IP address to the ARP table
  */
 void arptable_add(uint8_t *ip, uint8_t *eth) {
+  if (arptable_existed(ip) == NULL) {
 #if (DEBUG_ARPCACHE == 1)
   char bufip[BUFLEN_IP], bufeth[BUFLEN_ETH];
 
   printf("ARPCache#%d: %s, %s\n", arptable_n + 1, ip_addrstr(ip, bufip),
          eth_macaddr(eth, bufeth));
 #endif /* DEBUG_ARPCACHE == 1 */
+    arptable_n = (arptable_n + 1) % MAX_ARPIP_N;
+    arptable[arptable_n].ip = GET_IP(ip);
+    COPY_ETH_ADDR(arptable[arptable_n].eth, eth);
+  }
+}
 
-  arptable_n = (arptable_n + 1) % MAX_ARPIP_N;
-  arptable[arptable_n].ip = GET_IP(ip);
-  COPY_ETH_ADDR(arptable[arptable_n].eth, eth);
+ipethaddr_t *arptable_select() {
+  for (int i = 1; i <= arptable_n; i++) {
+    uint8_t *ip = &(arptable[i].ip);
+    uint8_t *eth = arptable[i].eth;
+    char bufip[BUFLEN_IP], bufeth[BUFLEN_ETH];
+    printf("ARPCache#%d: %s, %s\n", i, ip_addrstr(ip, bufip),
+         eth_macaddr(eth, bufeth));
+  }
+  printf("Select the target: ");
+
+  int target = 0;
+  getchar();
+  scanf("%d", &target);
+  if (0 < target && target <= arptable_n) {
+    return &arptable[target];
+  } else {
+    return NULL;
+  }
 }

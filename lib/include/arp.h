@@ -52,6 +52,11 @@ typedef struct {
   uint8_t dstip[IPV4_ADDR_LEN];
 } myarp_t;
 
+typedef struct {
+  ipaddr_t ip;
+  uint8_t eth[ETH_ADDR_LEN];
+} ipethaddr_t;
+
 /*========================*
  ***** Public Methods *****
  *========================*/
@@ -67,5 +72,6 @@ extern void arp_resend(netdevice_t *p);
  *==============================*/
 extern uint8_t *arptable_existed(uint8_t *ip);
 extern void arptable_add(uint8_t *ip, uint8_t *eth);
+extern ipethaddr_t *arptable_select();
 
 #endif /* __ARP_H__ */

