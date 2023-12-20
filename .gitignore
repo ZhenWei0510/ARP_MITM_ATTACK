@@ -1,0 +1,19 @@
+# Configuration of VSCode
+.vscode
+
+# Executable of every lab
+lab1/testprog
+lab1/testrecv
+lab1/testsend
+
+lab2/build
+lab2/lab2
+
+lab3/build
+lab3/lab3
+
+lab3/build
+lab3/lab3
+
+lab4/build
+lab4/lab4
