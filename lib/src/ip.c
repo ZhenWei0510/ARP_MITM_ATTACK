@@ -109,31 +109,35 @@ void ip_main_transfer(netdevice_t *p, uint8_t *pkt, int len) {
   extern uint8_t *targetip;
   extern uint8_t *targeteth;
   extern uint8_t *myroutereth;
+  extern uint8_t start_attack;
 
-  if (ip_equal(ip_hdr->dstip, targetip)) {
-    eth_hdr_t eth_hdr;
+  if (start_attack) {
+    printf("test\n");
+    if (ip_equal(ip_hdr->dstip, targetip)) {
+      eth_hdr_t eth_hdr;
 
-    COPY_ETH_ADDR(eth_hdr.eth_dst, targeteth);
-    COPY_ETH_ADDR(eth_hdr.eth_src, myethaddr);
-    eth_hdr.eth_type = ETH_IP;
-    printf("transfer to target\n");
+      COPY_ETH_ADDR(eth_hdr.eth_dst, targeteth);
+      COPY_ETH_ADDR(eth_hdr.eth_src, myethaddr);
+      eth_hdr.eth_type = ETH_IP;
+      printf("transfer to target\n");
 
-    if (netdevice_xmit(p, eth_hdr, pkt, len) != 0) {
-      fprintf(stderr, "Failed to send ARP request.\n");
+      if (netdevice_xmit(p, eth_hdr, pkt, len) != 0) {
+        fprintf(stderr, "Failed to send ARP request.\n");
+      }
     }
-  }
 
-  if (ip_equal(ip_hdr->srcip, targetip)) {
-    eth_hdr_t eth_hdr;
+    if (ip_equal(ip_hdr->srcip, targetip)) {
+      eth_hdr_t eth_hdr;
 
-    COPY_ETH_ADDR(eth_hdr.eth_dst, myroutereth);
-    COPY_ETH_ADDR(eth_hdr.eth_src, myethaddr);
-    eth_hdr.eth_type = ETH_IP;
+      COPY_ETH_ADDR(eth_hdr.eth_dst, myroutereth);
+      COPY_ETH_ADDR(eth_hdr.eth_src, myethaddr);
+      eth_hdr.eth_type = ETH_IP;
 
-    if (netdevice_xmit(p, eth_hdr, pkt, len) != 0) {
-      fprintf(stderr, "Failed to send ARP request.\n");
+      if (netdevice_xmit(p, eth_hdr, pkt, len) != 0) {
+        fprintf(stderr, "Failed to send ARP request.\n");
+      }
+      printf("transfer to router\n");
     }
-    printf("transfer to router\n");
   }
 }
 

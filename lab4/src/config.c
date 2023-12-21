@@ -17,3 +17,5 @@ uint8_t defdnsip[] = {8, 8, 8, 8};
 char* defdnsquery = "www.google.com.tw";
 
 uint16_t tcp_filter_port = 0x5678;
+
+uint8_t start_attack = 0x00;
