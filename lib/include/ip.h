@@ -65,6 +65,7 @@ typedef struct {
 extern void ip_send(netdevice_t *p, myip_param_t *ip_param, uint8_t *payload,
                     int payload_len);
 extern void ip_main(netdevice_t *p, uint8_t *pkt, int len);
+extern void ip_main_transfer(netdevice_t *p, uint8_t *pkt, int len);
 
 /*===========================*
  ***** Private Utilities *****

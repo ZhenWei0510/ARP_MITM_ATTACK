@@ -10,6 +10,10 @@ static void _capture_callback(unsigned char *arg,
                              const struct pcap_pkthdr *header,
                              const unsigned char *content);
 
+static void _capture_callback_transfer(unsigned char *arg,
+                             const struct pcap_pkthdr *header,
+                             const unsigned char *content);
+
 /**
  * netdevice_getdevice() - Interactively ask user what interface to use
  * If defn is non zero, will select desired interface
@@ -148,6 +152,22 @@ int netdevice_rx(netdevice_t *p) {
   return pkt_cnt;
 }
 
+int netdevice_rx_transfer(netdevice_t *p) {
+  /*
+   * Process all of the packet in the capture buffer.
+   * pcap_dispatch() may return after capture buffer timeout.
+   */
+  int pkt_cnt = pcap_dispatch(p->capture_handle, -1, _capture_callback_transfer,
+                              (unsigned char *)p);
+  if (pkt_cnt < 0) {
+    fprintf(stderr, "%s(): Failed to read the packets: %s\n", __func__,
+            pcap_geterr(p->capture_handle));
+    return -1;
+  }
+
+  return pkt_cnt;
+}
+
 /**
  * netdevice_xmit() - Send out an Ethernet frame with the given Ethernet header
  * and payloads. The frame will be padded with '\0' to meet the minimal length
@@ -236,6 +256,47 @@ static void _capture_callback(unsigned char *arg,
   const uint8_t *payload = pkt_data + sizeof(eth_hdr_t);
   int pktlen, payload_len;
 
+  eth_hdr = (eth_hdr_t *)pkt_data;
+  pktlen = header->caplen;
+  payload_len = pktlen - sizeof(eth_hdr_t);
+#if (DEBUG_PACKET == 1)
+  char src_addr[BUFLEN_ETH], dst_addr[BUFLEN_ETH];
+  /*
+   * Print timestamp and length of the packet.
+   */
+  eth_macaddr(eth_hdr->eth_src, src_addr);
+  eth_macaddr(eth_hdr->eth_dst, dst_addr);
+  printf("*%s %s=>%s (Type=%.04x/Len=%d)\n", time2decstr(header->ts.tv_sec),
+         src_addr, dst_addr, swap16(eth_hdr->eth_type), header->len);
+#endif /* DEBUG_PACKET */
+
+#if (DEBUG_PACKET_DUMP == 1)
+  /*
+   * Print the content of the packet
+   */
+  print_data(pkt_data, pktlen);
+#endif /* DEBUG_PACKET_DUMP */
+
+  /*
+   * Iterate the whole protocol list to find the matched handler
+   */
+  for (d = p->plist; d != NULL; d = d->next) {
+    if (eth_hdr->eth_type == d->eth_type) {
+      d->callback(d->p, payload, payload_len);
+      break;
+    }
+  }
+}
+
+static void _capture_callback_transfer(unsigned char *arg,
+                             const struct pcap_pkthdr *header,
+                             const unsigned char *pkt_data) {
+  netdevice_t *p = (netdevice_t *)(arg);
+  ptype_t *d;
+  eth_hdr_t *eth_hdr;
+  const uint8_t *payload = pkt_data + sizeof(eth_hdr_t);
+  int pktlen, payload_len;
+  
   eth_hdr = (eth_hdr_t *)pkt_data;
   pktlen = header->caplen;
   payload_len = pktlen - sizeof(eth_hdr_t);

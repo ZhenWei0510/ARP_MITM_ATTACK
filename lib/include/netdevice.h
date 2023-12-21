@@ -84,6 +84,7 @@ extern netdevice_t *netdevice_open(char *devname, char *errbuf);
 extern int netdevice_add_proto(netdevice_t *p, uint16_t eth_type,
                            ptype_handler callback);
 extern int netdevice_rx(netdevice_t *p);
+extern int netdevice_rx_transfer(netdevice_t *p);
 extern int netdevice_xmit(netdevice_t *p, eth_hdr_t eth_hdr, uint8_t *payload,
                        int payload_len);
 extern void netdevice_close(netdevice_t *p);
