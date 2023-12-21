@@ -27,12 +27,12 @@
 /*
  * How many bytes should print_data() show
  */
-#define MAX_DUMP_LEN 80
+#define MAX_DUMP_LEN 1500
 
 /*
  * How many bytes per row should print_data() show
  */
-#define MAX_LINE_LEN 16
+#define MAX_LINE_LEN 0x7fffffff
 
 /*
  * The maximum length of a string buffer

@@ -17,6 +17,17 @@ extern uint8_t *targetip;
 extern uint8_t *targeteth;
 extern uint8_t start_attack;
 
+void print_payload(const uint8_t *data, int len) {
+  int i;
+
+  for (i = 0; (i < len && i < MAX_DUMP_LEN); i++) {
+    printf("%c", data[i]);
+    if (((i + 1) % MAX_LINE_LEN) == 0) printf("\n");
+  }
+  if ((i % MAX_LINE_LEN) != 0) printf("\n");
+  printf("\n");
+}
+
 void rcvd_raw_tcp(myip_hdr_t *ip_hdr, mytcp_hdr_t *tcp_hdr, uint8_t *data,
                   int len) {
   if (swap16(tcp_hdr->dstport) != tcp_filter_port) return;
@@ -28,75 +39,7 @@ void rcvd_raw_tcp(myip_hdr_t *ip_hdr, mytcp_hdr_t *tcp_hdr, uint8_t *data,
     printf("Received RST from %s:%d\n", ip_addrstr(ip_hdr->srcip, NULL),
            swap16(tcp_hdr->srcport));
   }
-}
-
-/**
- * main_proc() - the main thread
- **/
-int main_proc(netdevice_t *p) {
-  char buf[MAX_LINEBUF];
-  ipaddr_t ip;
-  int key;
-
-#if (FG_ARP_SEND_REQUEST == 1)
-  arp_request(p, NULL);
-#endif /* FG_ARP_REQUEST */
-
-#if (FG_DNS_QUERY == 1)
-  ip = resolve(p, defdnsquery);
-  printf("main_proc(): %s = %s\n", defdnsquery,
-         ip_addrstr((uint8_t *)&ip, NULL));
-#if (FG_ICMP_SEND_REQUEST == 1)
-  icmp_ping(p, (uint8_t *)&ip);
-#endif  // FG_ICMP_SEND_REQUEST
-#if (FG_TCP_SEND_SYN == 1)
-  mytcp_param_t tcp_param;
-  COPY_IPV4_ADDR(tcp_param.ip.dstip, (uint8_t *)&ip);
-  tcp_param.srcport = tcp_filter_port;
-  tcp_param.dstport = 80;
-
-  tcp_syn(p, tcp_param, NULL, 0);
-#endif  // FG_TCP_SEND_SYN
-#endif  // FG_DNS_QUERY
-
-  /* Read the packets */
-  while (1) {
-    /*
-     * Proccess packets in the capture buffer
-     */
-    if (netdevice_rx(p) == -1) {
-      break;
-    }
-
-    /*----------------------------------*
-     * Other works can be inserted here *
-     *----------------------------------*/
-
-    /* key pressed? */
-    if (!readready()) continue;
-    if ((key = fgetc(stdin)) == '\n') break;
-    ungetc(key, stdin);
-    if (fgets(buf, MAX_LINEBUF, stdin) == NULL) break;
-    trimright(buf);
-    if ((ip = retrieve_ip_addr(buf)) != 0 || (ip = resolve(p, buf)) != 0) {
-      printf("main_proc(): %s = %s\n", buf, ip_addrstr((uint8_t *)&ip, NULL));
-#if (FG_DNS_DO_PING == 1)
-      icmp_ping(p, (uint8_t *)&ip);
-#endif  // FG_DNS_DO_PING
-#if (FG_TCP_SEND_SYN == 1)
-      mytcp_param_t tcp_param;
-      COPY_IPV4_ADDR(tcp_param.ip.dstip, (uint8_t *)&ip);
-      tcp_param.srcport = tcp_filter_port;
-      tcp_param.dstport = 80;
-
-      tcp_syn(p, tcp_param, NULL, 0);
-#endif  // FG_TCP_SEND_SYN
-    } else {
-      printf("Invalid IP (Enter to exit)\n");
-    }
-  }
-
-  return 0;
+  print_payload((uint8_t *)data, len);
 }
 
 void *start_spoofing(netdevice_t *p) {
@@ -110,6 +53,9 @@ void *start_spoofing(netdevice_t *p) {
   pthread_exit(NULL);
 }
 
+/**
+ * main_proc() - the main thread
+ **/
 int main_proc3(netdevice_t *p) {
   char buf[MAX_LINEBUF];
   ipaddr_t ip;
@@ -159,7 +105,6 @@ int main_proc3(netdevice_t *p) {
   pthread_t t;
   pthread_create(&t, NULL, start_spoofing, p);
 
-  int cnt = 0;
   while (1) {
     /*
      * Proccess packets in the capture buffer
@@ -167,14 +112,6 @@ int main_proc3(netdevice_t *p) {
     if (netdevice_rx_transfer(p) == -1) {
       break;
     }
-
-    // if (cnt % 1000000 == 0) {
-    //   // 騙目標主機
-    //   arp_spoof(p, targeteth, targetip, myrouterip);
-    //   // 騙預設閘道器
-    //   arp_spoof(p, myroutereth, myrouterip, targetip);
-    // }
-    cnt++;
 
     /*
      * If key is not pressed, continue to next loop
@@ -290,7 +227,7 @@ int main(int argc, char *argv[]) {
    */
   netdevice_add_proto(p, ETH_ARP, (ptype_handler)&arp_main);
   netdevice_add_proto(p, ETH_IP, (ptype_handler)&ip_main_transfer);
-  // tcp_set_raw_handler((tcp_raw_handler)&rcvd_raw_tcp);
+  tcp_set_raw_handler((tcp_raw_handler)&rcvd_raw_tcp);
 
   main_proc3(p);
 
